@@ -1,0 +1,534 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Consulta de Espacios para ATP, AT y TT | Coahuila</title>
+  
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+
+  <style>
+    :root{
+      --ink:#172033;--muted:#667085;--line:#e3e8ef;--paper:#f4f7fb;--white:#fff;
+      --navy:#172b4d;--pink:#ed0a78;--teal:#009e9a;--gold:#f4ae2b;--cyan:#00a8c6;
+      --purple:#7655d5;--shadow:0 16px 42px rgba(23,43,77,.08);--radius:18px
+    }
+    *{box-sizing:border-box}
+    body{margin:0;color:var(--ink);background:var(--paper);font-family:Inter,"Segoe UI",Arial,sans-serif}
+    button,input,select{font:inherit}
+    .topline{height:5px;background:linear-gradient(90deg,var(--pink) 0 36%,var(--teal) 36% 67%,var(--gold) 67% 83%,var(--cyan) 83%)}
+    header{background:rgba(255,255,255,.98);border-bottom:1px solid var(--line)}
+    .header-inner{max-width:1420px;margin:auto;padding:20px 28px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:20px}
+    .title h1{margin:0;color:var(--navy);font-size:clamp(1.3rem,2.2vw,1.9rem);letter-spacing:-.03em}
+    .eyebrow{margin:0 0 4px;color:var(--pink);font-size:.72rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
+    .subtitle{margin:4px 0 0;color:var(--muted);font-size:.88rem}
+    
+    main{max-width:1420px;margin:auto;padding:24px 28px}
+    .toolbar{display:flex;flex-wrap:wrap;align-items:end;gap:12px;padding:18px;border:1px solid var(--line);border-radius:var(--radius);background:var(--white);box-shadow:var(--shadow)}
+    .filter{min-width:150px;flex:1}
+    .filter.search{min-width:220px;flex:1.4}
+    .filter label{display:block;margin:0 0 6px;color:var(--muted);font-size:.68rem;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+    select,input[type=search]{width:100%;height:42px;padding:0 12px;color:var(--ink);border:1px solid #d5dce6;border-radius:10px;background:#fff;outline:none}
+    select:focus,input:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(0,158,154,.12)}
+    
+    .actions{display:flex;gap:8px}
+    .btn{height:42px;padding:0 16px;border:1px solid #d5dce6;border-radius:10px;background:#fff;color:var(--navy);font-weight:750;cursor:pointer}
+    .btn.primary{color:#fff;background:var(--navy);border-color:var(--navy)}
+    .btn.upload{color:#fff;background:var(--teal);border-color:var(--teal)}
+
+    .kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin:18px 0}
+    .kpi{position:relative;overflow:hidden;padding:16px 18px;border:1px solid var(--line);border-radius:var(--radius);background:var(--white);box-shadow:var(--shadow)}
+    .kpi:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--accent,var(--teal))}
+    .kpi-label{color:var(--muted);font-size:.7rem;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
+    .kpi-value{margin:8px 0 2px;color:var(--navy);font-size:2rem;font-weight:850;letter-spacing:-.05em}
+    .kpi-detail{color:var(--muted);font-size:.76rem}
+
+    .sup-card{margin-bottom:18px;padding:20px;border:1px solid var(--line);border-radius:var(--radius);background:var(--white);box-shadow:var(--shadow);display:grid;grid-template-columns:auto 1fr auto;gap:20px;align-items:center}
+    .sup-avatar{width:54px;height:54px;border-radius:50%;background:#eaf7f6;color:var(--teal);display:grid;place-content:center;font-size:1.3rem;font-weight:850}
+    .sup-info h2{margin:0 0 6px;color:var(--navy);font-size:1.1rem}
+    .sup-meta{display:flex;flex-wrap:wrap;gap:16px;font-size:.82rem;color:var(--muted)}
+    .sup-meta b{color:var(--navy)}
+
+    .grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:18px}
+    .card{padding:20px;border:1px solid var(--line);border-radius:var(--radius);background:var(--white);box-shadow:var(--shadow)}
+    .card.map-card{grid-column:span 8}
+    .card.list-card{grid-column:span 4}
+    .card.full{grid-column:1/-1}
+    .card-head{display:flex;justify-content:space-between;align-items:start;margin-bottom:14px}
+    .card-head h2{margin:0;color:var(--navy);font-size:1.02rem}
+    .card-head p{margin:4px 0 0;color:var(--muted);font-size:.78rem}
+    
+    #mapView{width:100%;height:500px;border-radius:12px;border:1px solid var(--line)}
+    .schools-scroll{max-height:500px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding-right:4px}
+    .school-item{padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:#fbfcfe;cursor:pointer;transition:border-color .2s}
+    .school-item:hover{border-color:var(--teal)}
+    .school-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+    .school-name{color:var(--navy);font-weight:750;font-size:.84rem}
+    .badge-turno{padding:3px 8px;border-radius:6px;font-size:.68rem;font-weight:800}
+    .badge-turno.matutino{background:#eaf7f6;color:#087e7b}
+    .badge-turno.vespertino{background:#fdf2e9;color:#b25e09}
+
+    .table-wrap{overflow-x:auto;max-height:480px}
+    table{width:100%;border-collapse:collapse;font-size:.8rem}
+    th{position:sticky;top:0;z-index:2;padding:10px 12px;color:var(--muted);border-bottom:1px solid var(--line);background:#fff;text-align:left;font-size:.66rem;letter-spacing:.06em;text-transform:uppercase}
+    td{padding:10px 12px;border-bottom:1px solid #edf0f4;vertical-align:top}
+    .row-clickable{cursor:pointer}
+    .row-clickable:hover td{background:#f9fbfe}
+    .status-badge{padding:3px 8px;border-radius:999px;font-size:.7rem;font-weight:800;background:#eef7f7;color:#087e7b}
+    
+    .status-alert{display:none;padding:10px 14px;border-radius:10px;margin-top:10px;font-size:.8rem;background:#eef9f8;color:#087e7b}
+    .status-alert.err{background:#fff2f3;color:#a52d3e}
+
+    @media(max-width:1024px){
+      .kpis{grid-template-columns:repeat(2,1fr)}
+      .card.map-card,.card.list-card{grid-column:span 12}
+      .sup-card{grid-template-columns:1fr;text-align:center}
+      .sup-avatar{margin:auto}
+      .sup-meta{justify-content:center}
+    }
+  </style>
+</head>
+<body>
+  <div class="topline"></div>
+  <header>
+    <div class="header-inner">
+      <div class="title">
+        <p class="eyebrow">Proceso de Asignación por Reconocimiento · Coahuila</p>
+        <h1>Consulta de Espacios Disponibles y Zonas Escolares</h1>
+        <p class="subtitle">Catálogo operativo de supervisiones, centros de trabajo y turnos para aspirantes a ATP, AT y TT</p>
+      </div>
+      <div class="actions">
+        <input id="csvEspaciosFile" type="file" accept=".csv" hidden>
+        <input id="csvJseFile" type="file" accept=".csv" hidden>
+        <button class="btn upload" type="button" onclick="document.getElementById('csvEspaciosFile').click()">Actualizar Espacios (CSV)</button>
+        <button class="btn upload" type="button" onclick="document.getElementById('csvJseFile').click()">Actualizar Escuelas (CSV)</button>
+        <button class="btn primary" type="button" onclick="window.print()">Imprimir / PDF</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div id="fileStatus" class="status-alert"></div>
+
+    <section class="toolbar">
+      <div class="filter search">
+        <label for="searchBox">Buscar CCT, Zona o Nombre</label>
+        <input id="searchBox" type="search" placeholder="Ej. 05FIS0003C o Saltillo">
+      </div>
+      <div class="filter">
+        <label for="fnFilter">Función</label>
+        <select id="fnFilter"></select>
+      </div>
+      <div class="filter">
+        <label for="regFilter">Región</label>
+        <select id="regFilter"></select>
+      </div>
+      <div class="filter">
+        <label for="nivFilter">Nivel / Modalidad</label>
+        <select id="nivFilter"></select>
+      </div>
+      <div class="actions">
+        <button class="btn" id="resetBtn" type="button">Restablecer</button>
+      </div>
+    </section>
+
+    <!-- Banner de Supervisión seleccionada -->
+    <section class="sup-card" id="supCard">
+      <div class="sup-avatar" id="supAvatar">SE</div>
+      <div class="sup-info">
+        <h2 id="supTitle">Seleccione una Supervisión o Espacio para consultar</h2>
+        <div class="sup-meta" id="supMeta">
+          <span>Supervisor(a): <b id="supNombre">-</b></span>
+          <span>CCT Supervisión: <b id="supCct">-</b></span>
+          <span>Municipio: <b id="supMun">-</b></span>
+          <span>Teléfono: <b id="supTel">-</b></span>
+          <span>Domicilio: <b id="supDom">-</b></span>
+        </div>
+      </div>
+      <div>
+        <span class="status-badge" id="supBadge">Sede Operativa</span>
+      </div>
+    </section>
+
+    <!-- Indicadores -->
+    <section class="kpis">
+      <article class="kpi" style="--accent:var(--teal)">
+        <div class="kpi-label">Espacios Disponibles</div>
+        <div class="kpi-value" id="kpiEspacios">0</div>
+        <div class="kpi-detail" id="kpiEspaciosDetalle">Filtrados en catálogo</div>
+      </article>
+      <article class="kpi" style="--accent:var(--cyan)">
+        <div class="kpi-label">Escuelas de la Zona</div>
+        <div class="kpi-value" id="kpiEscuelas">0</div>
+        <div class="kpi-detail">Planteles adscritos a la supervisión</div>
+      </article>
+      <article class="kpi" style="--accent:var(--gold)">
+        <div class="kpi-label">Turno Matutino</div>
+        <div class="kpi-value" id="kpiMatutino">0</div>
+        <div class="kpi-detail">Planteles matutinos</div>
+      </article>
+      <article class="kpi" style="--accent:var(--pink)">
+        <div class="kpi-label">Turno Vespertino</div>
+        <div class="kpi-value" id="kpiVespertino">0</div>
+        <div class="kpi-detail">Planteles vespertinos</div>
+      </article>
+    </section>
+
+    <!-- Mapa y Planteles -->
+    <section class="grid">
+      <article class="card map-card">
+        <div class="card-head">
+          <div>
+            <h2>Ubicación Geográfica</h2>
+            <p>Marcador morado: Supervisión escolar | Marcadores verdes/amarillos: Escuelas adscritas</p>
+          </div>
+        </div>
+        <div id="mapView"></div>
+      </article>
+
+      <article class="card list-card">
+        <div class="card-head">
+          <div>
+            <h2>Escuelas de la Zona Escolar</h2>
+            <p>Clic para ubicar y enfocar en el mapa</p>
+          </div>
+        </div>
+        <div class="schools-scroll" id="schoolsList">
+          <p style="color:var(--muted);font-size:.82rem">Selecciona una supervisión para ver sus planteles.</p>
+        </div>
+      </article>
+
+      <!-- Tabla de Espacios y Zonas -->
+      <article class="card full">
+        <div class="card-head">
+          <div>
+            <h2>Lista Nominal de Espacios para Elección</h2>
+            <p>Haz clic en cualquier renglón para desplegar sus escuelas en el mapa superior.</p>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Función</th>
+                <th>CCT Supervisión</th>
+                <th>Zona</th>
+                <th>Nivel</th>
+                <th>Región</th>
+                <th>Subregión</th>
+                <th>M. Mat.</th>
+                <th>V. Vesp.</th>
+                <th>Sostenimiento</th>
+                <th>Estatus</th>
+              </tr>
+            </thead>
+            <tbody id="spacesTableBody"></tbody>
+          </table>
+        </div>
+      </article>
+    </section>
+  </main>
+
+  <script>
+    // DATOS CARGADOS DESDE bundle_data.json
+    let SPACES = [];
+    let SUPS = {};
+    let selectedCCT = null;
+
+    let map = null;
+    let markersLayer = null;
+
+    function initMap() {
+      map = L.map('mapView').setView([25.43, -101.00], 11);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(map);
+      markersLayer = L.layerGroup().addTo(map);
+    }
+
+    // Carga inicial del bundle generado
+    async function loadInitialData() {
+      try {
+        const res = await fetch('bundle_data.json');
+        if (res.ok) {
+          const data = await res.json();
+          SPACES = data.spaces || [];
+          SUPS = data.sups || {};
+          setupFilters();
+          render();
+        } else {
+          showStatus('No se encontró bundle_data.json local. Cargue los archivos CSV con los botones superiores.', true);
+        }
+      } catch(e) {
+        showStatus('Listo para cargar archivos CSV mediante los botones superiores.', false);
+      }
+    }
+
+    function showStatus(msg, isErr=false) {
+      const el = document.getElementById('fileStatus');
+      el.textContent = msg;
+      el.className = 'status-alert ' + (isErr ? 'err' : '');
+      el.style.display = 'block';
+      setTimeout(() => { el.style.display = 'none'; }, 6000);
+    }
+
+    function setupFilters() {
+      const fns = [...new Set(SPACES.map(s => s.fn).filter(Boolean))].sort();
+      const regs = [...new Set(SPACES.map(s => s.reg).filter(r => r && !r.includes('Verifique')))].sort();
+      const nivs = [...new Set(SPACES.map(s => s.niv).filter(Boolean))].sort();
+
+      const fnEl = document.getElementById('fnFilter');
+      fnEl.innerHTML = '<option value="">Todas las funciones (ATP/AT/TT)</option>';
+      fns.forEach(f => fnEl.add(new Option(f, f)));
+
+      const regEl = document.getElementById('regFilter');
+      regEl.innerHTML = '<option value="">Todas las regiones</option>';
+      regs.forEach(r => regEl.add(new Option(r, r)));
+
+      const nivEl = document.getElementById('nivFilter');
+      nivEl.innerHTML = '<option value="">Todos los niveles</option>';
+      nivs.forEach(n => nivEl.add(new Option(n, n)));
+    }
+
+    function getFilteredSpaces() {
+      const q = document.getElementById('searchBox').value.trim().toUpperCase();
+      const fn = document.getElementById('fnFilter').value;
+      const reg = document.getElementById('regFilter').value;
+      const niv = document.getElementById('nivFilter').value;
+
+      return SPACES.filter(s => {
+        if (fn && s.fn !== fn) return false;
+        if (reg && s.reg !== reg) return false;
+        if (niv && s.niv !== niv) return false;
+        if (q) {
+          const match = s.cct.toUpperCase().includes(q) ||
+                        s.ze.toUpperCase().includes(q) ||
+                        s.niv.toUpperCase().includes(q) ||
+                        s.subreg.toUpperCase().includes(q);
+          if (!match) return false;
+        }
+        return true;
+      });
+    }
+
+    function selectSupervision(cct) {
+      selectedCCT = cct;
+      const sup = SUPS[cct];
+      const supCard = document.getElementById('supCard');
+
+      if (!sup) {
+        document.getElementById('supTitle').textContent = `Supervisión CCT: ${cct}`;
+        document.getElementById('supNombre').textContent = 'Información no vinculada en base de escuelas';
+        document.getElementById('supCct').textContent = cct;
+        document.getElementById('supMun').textContent = '-';
+        document.getElementById('supTel').textContent = '-';
+        document.getElementById('supDom').textContent = '-';
+        document.getElementById('kpiEscuelas').textContent = '0';
+        document.getElementById('kpiMatutino').textContent = '0';
+        document.getElementById('kpiVespertino').textContent = '0';
+        document.getElementById('schoolsList').innerHTML = '<p style="color:var(--muted);font-size:.82rem;padding:12px">No se encontraron escuelas adscritas en el catálogo.</p>';
+        markersLayer.clearLayers();
+        return;
+      }
+
+      // Llenar tarjeta del supervisor
+      document.getElementById('supTitle').textContent = `${sup.nom || 'Supervisión Escolar'} (${cct})`;
+      document.getElementById('supNombre').textContent = sup.sup || 'Sin supervisor asignado';
+      document.getElementById('supCct').textContent = cct;
+      document.getElementById('supMun').textContent = sup.mun || '-';
+      document.getElementById('supTel').textContent = sup.tel || 'No registrado';
+      document.getElementById('supDom').textContent = sup.dom || 'No registrado';
+      document.getElementById('supAvatar').textContent = (sup.sup || 'SE').split(' ').map(w=>w[0]).slice(0,2).join('');
+
+      // Calcular turnos
+      const mat = sup.esc.filter(e => e.tur.toUpperCase().includes('MATUTINO')).length;
+      const vesp = sup.esc.filter(e => e.tur.toUpperCase().includes('VESPERTINO')).length;
+      document.getElementById('kpiEscuelas').textContent = sup.esc.length;
+      document.getElementById('kpiMatutino').textContent = mat;
+      document.getElementById('kpiVespertino').textContent = vesp;
+
+      // Renderizar Marcadores
+      markersLayer.clearLayers();
+      const bounds = [];
+
+      const supIcon = L.icon({
+        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-violet.png',
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+        iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
+      });
+
+      const matIcon = L.icon({
+        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-teal.png',
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+        iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
+      });
+
+      const vespIcon = L.icon({
+        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-gold.png',
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+        iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41]
+      });
+
+      if (sup.lat && sup.lng) {
+        L.marker([sup.lat, sup.lng], { icon: supIcon })
+          .bindPopup(`<b>SEDE SUPERVISIÓN</b><br>${sup.nom}<br>Supervisor: ${sup.sup}`)
+          .addTo(markersLayer);
+        bounds.push([sup.lat, sup.lng]);
+      }
+
+      const schoolMapMarkers = {};
+      sup.esc.forEach(esc => {
+        if (esc.lat && esc.lng) {
+          const isMat = esc.tur.toUpperCase().includes('MATUTINO');
+          const m = L.marker([esc.lat, esc.lng], { icon: isMat ? matIcon : vespIcon })
+            .bindPopup(`<b>${esc.nom}</b><br>CCT: ${esc.cct}<br>Turno: ${esc.tur}<br>${esc.dom}`)
+            .addTo(markersLayer);
+          schoolMapMarkers[esc.cct] = m;
+          bounds.push([esc.lat, esc.lng]);
+        }
+      });
+
+      if (bounds.length > 0) {
+        map.fitBounds(bounds, { padding: [30, 30] });
+      }
+
+      // Lista lateral
+      const scList = document.getElementById('schoolsList');
+      scList.innerHTML = sup.esc.map(e => `
+        <div class="school-item" onclick="focusSchool('${e.cct}', ${e.lat}, ${e.lng})">
+          <div class="school-top">
+            <span class="school-name">${e.nom}</span>
+            <span class="badge-turno ${e.tur.toLowerCase().includes('matutino') ? 'matutino':'vespertino'}">${e.tur}</span>
+          </div>
+          <div style="font-size:.74rem;color:var(--muted)">CCT: <b>${e.cct}</b> · ${e.mun}</div>
+        </div>
+      `).join('');
+
+      window.focusSchool = function(cct, lat, lng) {
+        if (lat && lng && map) {
+          map.flyTo([lat, lng], 15);
+          if (schoolMapMarkers[cct]) schoolMapMarkers[cct].openPopup();
+        }
+      };
+    }
+
+    function render() {
+      const list = getFilteredSpaces();
+      document.getElementById('kpiEspacios').textContent = list.length;
+      document.getElementById('kpiEspaciosDetalle').textContent = `${list.length} de ${SPACES.length} disponibles`;
+
+      const tbody = document.getElementById('spacesTableBody');
+      tbody.innerHTML = list.map(s => `
+        <tr class="row-clickable" onclick="selectSupervision('${s.cct}')">
+          <td><b>${s.fn}</b></td>
+          <td><b>${s.cct}</b></td>
+          <td>${s.ze}</td>
+          <td>${s.niv}</td>
+          <td>${s.reg}</td>
+          <td>${s.subreg}</td>
+          <td>${s.tm}</td>
+          <td>${s.tv}</td>
+          <td>${s.sost}</td>
+          <td><span class="status-badge">Disponible</span></td>
+        </tr>
+      `).join('');
+
+      if (list.length > 0 && (!selectedCCT || !list.some(s => s.cct === selectedCCT))) {
+        selectSupervision(list[0].cct);
+      }
+    }
+
+    // Actualización interactiva con PapaParse
+    document.getElementById('csvEspaciosFile').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: function(results) {
+          // Detectar fila de encabezados correcta
+          const rows = results.data;
+          SPACES = rows.map(r => ({
+            fn: r['Tipo de Reconocimiento (AT o ATP)'] || r['Tipo'] || '',
+            serv: r['Servicio'] || '',
+            sost: r['Sostenimiento'] || '',
+            niv: r['NivelBasica'] || r['Nivel'] || '',
+            cct: (r['cct'] || r['CCT'] || '').trim(),
+            ze: r['ze'] || '',
+            reg: r['region'] || '',
+            subreg: r['subregion'] || '',
+            zeco: r['zeco'] || '',
+            obs: r['Observaciones'] || '',
+            tm: parseInt(r['e_tm']) || 0,
+            tv: parseInt(r['e_tv']) || 0
+          })).filter(s => s.cct);
+
+          setupFilters();
+          render();
+          showStatus(`Espacios actualizados: ${SPACES.length} registros cargados desde ${file.name}.`);
+        }
+      });
+    });
+
+    document.getElementById('csvJseFile').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: function(results) {
+          const newSups = {};
+          results.data.forEach(r => {
+            const cct_s = (r['cct_s'] || '').trim();
+            if (!cct_s) return;
+            if (!newSups[cct_s]) {
+              newSups[cct_s] = {
+                nom: r['nombre_s'] || '',
+                sup: r['nombre_supervisor_s'] || '',
+                tel: r['telefono_s'] || '',
+                dom: `${r['domicilio_s'] || ''}, ${r['colonia_s'] || ''}`,
+                mun: r['nombre_de_municipio_s'] || '',
+                lat: parseFloat(r['lat_s']) || null,
+                lng: parseFloat(r['lon_s']) || null,
+                esc: []
+              };
+            }
+            newSups[cct_s].esc.push({
+              cct: r['cct_e'] || '',
+              nom: r['nombre_e'] || '',
+              tur: r['desc_turno_e'] || '',
+              mun: r['nombre_de_municipio_e'] || '',
+              dom: `${r['domicilio_e'] || ''}, ${r['colonia_e'] || ''}`,
+              dir: r['nombre_director_e'] || '',
+              lat: parseFloat(r['lat_e']) || null,
+              lng: parseFloat(r['lon_e']) || null
+            });
+          });
+          SUPS = newSups;
+          if (selectedCCT) selectSupervision(selectedCCT);
+          showStatus(`Catálogo escolar actualizado: ${Object.keys(SUPS).length} supervisiones procesadas.`);
+        }
+      });
+    });
+
+    // Eventos
+    ['searchBox', 'fnFilter', 'regFilter', 'nivFilter'].forEach(id => {
+      document.getElementById(id).addEventListener('input', render);
+    });
+
+    document.getElementById('resetBtn').addEventListener('click', () => {
+      document.getElementById('searchBox').value = '';
+      document.getElementById('fnFilter').value = '';
+      document.getElementById('regFilter').value = '';
+      document.getElementById('nivFilter').value = '';
+      render();
+    });
+
+    // Inicio
+    initMap();
+    loadInitialData();
+  </script>
+</body>
+</html>
