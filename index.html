@@ -41,7 +41,7 @@
     .btn.admin-btn{background:transparent;border:1px dashed #ced4da;color:var(--muted)}
     .btn.admin-btn:hover{color:var(--navy);border-color:var(--navy)}
 
-    /* Banner informativo de Vacantes Estatales */
+    /* Ficha de Vacantes Estatales */
     .vacantes-banner{
       margin:16px 0;padding:14px 20px;border:1px solid #d0ecf4;border-radius:var(--radius);
       background:linear-gradient(135deg, #f0f9fc 0%, #ffffff 100%);box-shadow:var(--shadow);
@@ -51,7 +51,7 @@
     .vac-info p{margin:0;color:var(--muted);font-size:.78rem}
     .vac-counters{display:flex;gap:14px;flex-wrap:wrap}
     .vac-box{background:#fff;border:1px solid var(--line);border-radius:10px;padding:6px 14px;text-align:center}
-    .vac-box-num{font-size:1.35rem;font-weight:850;color:var(--navy);line-height:1.1}
+    .vac-box-num{font-size:1.35rem;font-weight:850;line-height:1.1}
     .vac-box-lbl{font-size:.64rem;font-weight:800;color:var(--muted);text-transform:uppercase}
 
     .kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:16px}
@@ -168,7 +168,7 @@
       </div>
     </section>
 
-    <!-- Ficha de Vacantes Estatales (Independiente de Municipio y Región) -->
+    <!-- Ficha de Vacantes Estatales Dinámica -->
     <section class="vacantes-banner">
       <div class="vac-info">
         <h3>
@@ -211,7 +211,7 @@
         <div class="kpi-detail">Ya asignadas en el proceso</div>
       </article>
       <article class="kpi" style="--accent:var(--cyan)">
-        <div class="kpi-label">Escuelas de la Zona Elegida</div>
+        <div class="kpi-label">Escuelas de la Zona Resaltada</div>
         <div class="kpi-value" id="kpiEscuelas">0</div>
         <div class="kpi-detail" id="kpiEscuelasDetalle">Planteles adscritos</div>
       </article>
@@ -403,7 +403,7 @@
       });
     }
 
-    // Cálculo exclusivo de vacantes estatales (independiente de municipio y región)
+    // Cálculo dinámico conectando vacantes con espacios ocupados (Se restan de Asignadas / Por Asignar)
     function computeStateVacancies() {
       const fn = document.getElementById('fnFilter').value;
       const niv = document.getElementById('nivFilter').value;
@@ -415,8 +415,16 @@
       });
 
       const totalVac = filteredVacs.reduce((acc, v) => acc + (v.vac || 0), 0);
-      const totalAsig = filteredVacs.reduce((acc, v) => acc + (v.asig || 0), 0);
-      const totalPorAsig = filteredVacs.reduce((acc, v) => acc + (v.por_asig || 0), 0);
+
+      // Contar espacios ocupados correspondientes a este filtro en la tabla SPACES
+      const matchingSpaces = SPACES.filter(s => {
+        if (fn && s.fn !== fn) return false;
+        if (niv && s.niv.toLowerCase() !== niv.toLowerCase()) return false;
+        return true;
+      });
+
+      const totalAsig = matchingSpaces.filter(s => s.estatus === 'Ocupada').length;
+      const totalPorAsig = Math.max(0, totalVac - totalAsig);
 
       document.getElementById('vacTotalNum').textContent = totalVac;
       document.getElementById('vacAsigNum').textContent = totalAsig;
@@ -529,7 +537,7 @@
     function render() {
       const list = getFilteredSpaces();
       
-      // Actualizar cálculo estatal de vacantes
+      // Actualizar cálculo estatal de vacantes con sustracción de ocupadas
       computeStateVacancies();
 
       const dispCount = list.filter(s => s.estatus !== 'Ocupada').length;
@@ -539,7 +547,7 @@
       document.getElementById('kpiZonasTotalDetalle').textContent = `${list.length} de ${SPACES.length} en catálogo`;
 
       document.getElementById('kpiZonasDisp').textContent = dispCount;
-      document.getElementById('kpiZonasDispDetalle').textContent = 'Opciones activas para elegir';
+      document.getElementById('kpiZonasDispDetalle').textContent = 'Libres para elección';
 
       document.getElementById('kpiZonasOcup').textContent = ocupCount;
 
@@ -608,7 +616,7 @@
           const tvIdx = headers.findIndex(h => h.toLowerCase() === 'e_tv');
           const idespIdx = headers.findIndex(h => h.toLowerCase() === 'idespacio');
 
-          let estatusIdx = headers.findIndex(h => ['estatus', 'status', 'disponib', 'estado', 'selec'].some(w => h.toLowerCase().includes(w)));
+          let estatusIdx = headers.findIndex(h => ['selec', 'select', 'estatus', 'status', 'disponib'].some(w => h.toLowerCase().includes(w)));
           let obsIdx = headers.findIndex(h => h.toLowerCase().includes('observ'));
 
           SPACES = [];
@@ -619,8 +627,9 @@
 
             const stRaw = (String(row[estatusIdx] || '') + ' ' + String(row[obsIdx] || '')).toLowerCase();
             let estatus = 'Disponible';
-            if (stRaw.includes('ocupad')) estatus = 'Ocupada';
-            else if (stRaw.includes('disponib')) estatus = 'Disponible';
+            if (any(w => stRaw.includes(w), ['ocupad', 'asigna', 'si', 'x'])) {
+              estatus = 'Ocupada';
+            }
 
             SPACES.push({
               cct: cct,
